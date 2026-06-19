@@ -9,7 +9,30 @@ import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, quer
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
-const firebaseConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8'));
+let firebaseConfig: any;
+try {
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } else {
+    // Fallback to environment variables for production (Vercel)
+    firebaseConfig = {
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+      appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
+      apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || '(default)',
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID
+    };
+  }
+} catch (err) {
+  console.warn("Could not load firebase-applet-config.json, relying on environment variables.");
+  firebaseConfig = {
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || '(default)'
+  };
+}
 
 const firebaseApp = getApps().length === 0 
   ? initializeApp(firebaseConfig)
@@ -1541,7 +1564,7 @@ Este documento comprova a conformidade interna corporativa.
   }
 
   // Bind to port and address only if NOT running as a Vercel function
-  if (process.env.VERCEL !== "1") {
+  if (process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1") {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
@@ -1550,4 +1573,6 @@ Este documento comprova a conformidade interna corporativa.
   return app;
 }
 
-export default await startServer();
+// Export the app instance for Vercel Serverless Functions
+const app = await startServer();
+export default app;
