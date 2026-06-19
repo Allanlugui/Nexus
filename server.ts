@@ -26,10 +26,11 @@ try {
     };
   }
 } catch (err) {
-  console.warn("Could not load firebase-applet-config.json, relying on environment variables.");
+  console.warn("Could not load firebase-applet-config.json, relying on fallbacks.");
   firebaseConfig = {
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || '(default)'
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'escolabiblica-9c8cc',
+    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || 'AIzaSyA90SNwmX52RmRY94ZsZAEw74W1mxmTZkc',
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-6ca43dae-d324-4ffe-aa3f-a81d185246b6'
   };
 }
 
@@ -40,15 +41,36 @@ const firebaseApp = getApps().length === 0
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
 async function getAll(colName: string) {
-  const qs = await getDocs(collection(db, colName));
-  return qs.docs.map(d => d.data());
+  const colRef = collection(db, colName);
+  let lastErr: any;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const qs = await getDocs(colRef);
+      return qs.docs.map(d => d.data());
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`[DB] getAll ${colName} attempt ${i + 1} failed: ${err.message || err.code || 'unknown'}`);
+      if (i < 2) await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  throw lastErr;
 }
 
 async function getById(colName: string, id: string) {
   const docRef = doc(db, colName, id);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return undefined;
-  return docSnap.data();
+  let lastErr: any;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return undefined;
+      return docSnap.data();
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`[DB] getById ${colName}:${id} attempt ${i + 1} failed: ${err.message || err.code || 'unknown'}`);
+      if (i < 2) await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  throw lastErr;
 }
 
 function cleanUndefined(obj: any): any {
@@ -452,7 +474,11 @@ async function startServer() {
   }
 
   // Trigger migration and seeding
-  runDatabaseMigration().then(() => seedSectorsAndPositions());
+  if (process.env.VERCEL !== "1") {
+    runDatabaseMigration().then(() => seedSectorsAndPositions());
+  } else {
+    console.log("[SERVERLESS] Skipping background seeding on Vercel to optimize startup. Use /api/system/diag-db if needed.");
+  }
 
   app.get("/api/company", async (req, res) => {
     const companies = await getAll('erp_company');
@@ -1592,30 +1618,19 @@ Este documento comprova a conformidade interna corporativa.
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
-  } else {
-    // In production (Vercel), resolve dist folder correctly
-    // We use __dirname as a fallback which works better in some bundled environments
+  } else if (process.env.VERCEL !== "1") {
+    // Only serve static files via Express if NOT on Vercel
     const distPath = path.resolve(process.cwd(), "dist");
-    console.log(`[PROD] Checking dist path: ${distPath}`);
-    
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      // Root route for dist
-      app.get("/", (req, res) => {
+      app.get("*", (req, res) => {
         res.sendFile(path.join(distPath, "index.html"));
       });
-    } else {
-      // Fallback if dist is missing from the function's perspective
-      // This helps diagnostic when Vercel is serving static separately
-      app.get("/", (req, res) => {
-        res.status(200).send("Nexus ERP API is online. Frontend is being served by Vercel Edge.");
-      });
-      console.warn("[PROD] Warning: dist folder not found at " + distPath + ". Ensure Vercel is configured to serve the 'dist' directory.");
     }
   }
 
   // Bind to port and address only if NOT running as a Vercel function
-  if (process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1") {
+  if (process.env.VERCEL !== "1") {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
