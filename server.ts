@@ -218,7 +218,12 @@ async function sendToAdminHub(user: any) {
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
-  const io = new SocketIOServer(server, { cors: { origin: "*" } });
+  const io = process.env.VERCEL === "1" ? null : new SocketIOServer(server, { cors: { origin: "*" } });
+
+  // Helper to emit if io exists
+  const safeEmit = (event: string, data: any) => {
+    if (io) io.emit(event, data);
+  };
 
   // Wrap helper to catch async errors automatically in Express 4
   const originalGet = app.get.bind(app);
@@ -258,6 +263,15 @@ async function startServer() {
 
   // Setup routes before seed to avoid blocking
   app.get("/api/system/health", (req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV, vercel: !!process.env.VERCEL }));
+
+  app.get("/api/system/diag-vercel", (req, res) => {
+    res.json({
+      vercel: process.env.VERCEL,
+      nodeEnv: process.env.NODE_ENV,
+      cwd: process.cwd(),
+      distExists: fs.existsSync(path.resolve(process.cwd(), "dist"))
+    });
+  });
 
   // Diagnostics for Firestore
   app.get("/api/system/diag-db", async (req, res) => {
@@ -788,7 +802,7 @@ das atividades profissionais e revogação das chaves de acesso.
       signatures: []
     };
     await saveDoc('erp_approvals', newReq.id, newReq);
-    io.emit('approval:created', newReq);
+    safeEmit('approval:created', newReq);
     res.json(newReq);
   });
 
@@ -933,7 +947,7 @@ Este documento comprova a conformidade interna corporativa.
       approval.status = 'REJECTED';
       approval.rejectionReason = reason || "Rejeitado sem justificativa.";
       await saveDoc('erp_approvals', id, approval);
-      io.emit('approval:updated', approval);
+      safeEmit('approval:updated', approval);
       res.json(approval);
     } else {
       res.status(403).json({ error: "Sua função hierárquica não concede permissão para rejeitar esta requisição." });
@@ -1031,7 +1045,7 @@ Este documento comprova a conformidade interna corporativa.
 
     const report = { id: uuidv4(), senderId, recipientId, title, content, fileName, fileData, date: Date.now() };
     await saveDoc('erp_reports', report.id, report);
-    io.emit('report:created', report);
+    safeEmit('report:created', report);
     res.json(report);
   });
 
@@ -1053,7 +1067,7 @@ Este documento comprova a conformidade interna corporativa.
        status: 'PENDING_APPROVAL' 
      };
      await saveDoc('erp_sales', sale.id, sale);
-     io.emit('sale:created', sale);
+     safeEmit('sale:created', sale);
      res.json(sale);
   });
 
@@ -1137,7 +1151,7 @@ Este documento comprova a conformidade interna corporativa.
       signatures: []
     };
     await saveDoc('erp_budget_requests', request.id, request);
-    io.emit('budget-request:created', request);
+    safeEmit('budget-request:created', request);
     res.json(request);
   });
 
@@ -1152,7 +1166,7 @@ Este documento comprova a conformidade interna corporativa.
       request.status = 'REJECTED';
       request.rejectionReason = rejectionReason || 'Rejeitado sem justificativa.';
       await saveDoc('erp_budget_requests', id, request);
-      io.emit('budget-request:updated', request);
+      safeEmit('budget-request:updated', request);
       return res.json(request);
     }
     
@@ -1587,22 +1601,24 @@ Este documento comprova a conformidade interna corporativa.
 
   app.get("/api/tasks", async (req, res) => res.json(await getAll('tasks')));
 
-  io.on("connection", (socket) => {
-    socket.on("message:send", async (data: { senderId: string, recipientId?: string, content: string, fileData?: string, fileName?: string, fileType?: string }) => {
-      const newMsg = { 
-        id: uuidv4(), 
-        senderId: data.senderId, 
-        recipientId: data.recipientId, 
-        content: data.content, 
-        timestamp: Date.now(),
-        fileData: data.fileData,
-        fileName: data.fileName,
-        fileType: data.fileType
-      };
-      await saveDoc('erp_messages', newMsg.id, newMsg);
-      io.emit("message:created", newMsg);
+  if (io) {
+    io.on("connection", (socket) => {
+      socket.on("message:send", async (data: { senderId: string, recipientId?: string, content: string, fileData?: string, fileName?: string, fileType?: string }) => {
+        const newMsg = { 
+          id: uuidv4(), 
+          senderId: data.senderId, 
+          recipientId: data.recipientId, 
+          content: data.content, 
+          timestamp: Date.now(),
+          fileData: data.fileData,
+          fileName: data.fileName,
+          fileType: data.fileType
+        };
+        await saveDoc('erp_messages', newMsg.id, newMsg);
+        safeEmit("message:created", newMsg);
+      });
     });
-  });
+  }
 
   // Global Express Error Handler Middleware
   app.use((err: any, req: any, res: any, next: any) => {
