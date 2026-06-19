@@ -4,7 +4,7 @@ import path from "path";
 import { Server as SocketIOServer } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, query, limit } from 'firebase/firestore/lite';
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, query, limit, initializeFirestore, terminate } from 'firebase/firestore';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
@@ -38,7 +38,8 @@ const firebaseApp = getApps().length === 0
   ? initializeApp(firebaseConfig)
   : getApp();
 
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+// In serverless, we might want to initialize with specific settings
+const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
 async function getAll(colName: string) {
   const colRef = collection(db, colName);
@@ -49,8 +50,8 @@ async function getAll(colName: string) {
       return qs.docs.map(d => d.data());
     } catch (err: any) {
       lastErr = err;
-      console.warn(`[DB] getAll ${colName} attempt ${i + 1} failed: ${err.message || err.code || 'unknown'}`);
-      if (i < 2) await new Promise(r => setTimeout(r, 500));
+      console.error(`[DB ERROR] getAll ${colName} attempt ${i + 1} failed. Code: ${err.code}, Message: ${err.message}`);
+      if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1))); // Exponential backoff
     }
   }
   throw lastErr;
@@ -66,8 +67,8 @@ async function getById(colName: string, id: string) {
       return docSnap.data();
     } catch (err: any) {
       lastErr = err;
-      console.warn(`[DB] getById ${colName}:${id} attempt ${i + 1} failed: ${err.message || err.code || 'unknown'}`);
-      if (i < 2) await new Promise(r => setTimeout(r, 500));
+      console.error(`[DB ERROR] getById ${colName}:${id} attempt ${i + 1} failed. Code: ${err.code}, Message: ${err.message}`);
+      if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1))); // Exponential backoff
     }
   }
   throw lastErr;
@@ -1620,6 +1621,16 @@ Este documento comprova a conformidade interna corporativa.
     });
   }
 
+  app.get("/api/system/test-db", async (req: any, res: any) => {
+    try {
+      const q = query(collection(db, 'erp_users'), limit(1));
+      const qs = await getDocs(q);
+      res.json({ ok: true, count: qs.docs.length, environment: process.env.NODE_ENV, vercel: !!process.env.VERCEL });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message, code: err.code, stack: err.stack });
+    }
+  });
+
   // Global Express Error Handler Middleware
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Express Unhandled Error during path", req.method, req.path, ":", err);
@@ -1656,5 +1667,8 @@ Este documento comprova a conformidade interna corporativa.
 }
 
 // Export the app instance for Vercel Serverless Functions
-const app = await startServer();
-export default app;
+const appPromise = startServer();
+export default async (req: any, res: any) => {
+  const app = await appPromise;
+  return app(req, res);
+};
