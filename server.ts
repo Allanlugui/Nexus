@@ -228,6 +228,42 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  // Add a CSP header to help with Vercel/Browser restrictions
+  app.use((req, res, next) => {
+    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com ws: wss:;");
+    next();
+  });
+
+  // Setup routes before seed to avoid blocking
+  app.get("/api/system/health", (req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV, vercel: !!process.env.VERCEL }));
+
+  // Diagnostics for Firestore
+  app.get("/api/system/diag-db", async (req, res) => {
+    try {
+      const qs = await getDocs(query(collection(db, 'erp_users'), limit(1)));
+      res.json({ 
+        status: "connected", 
+        usersCount: qs.docs.length,
+        config: {
+          projectId: firebaseConfig.projectId,
+          databaseId: firebaseConfig.firestoreDatabaseId,
+          apiKeyUsed: firebaseConfig.apiKey ? "PRESENT" : "MISSING"
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ 
+        status: "error", 
+        message: err.message,
+        code: err.code,
+        stack: err.stack,
+        config: {
+          projectId: firebaseConfig.projectId,
+          databaseId: firebaseConfig.firestoreDatabaseId
+        }
+      });
+    }
+  });
+
   // Check setup status
   app.get("/api/system/setup-status", async (req, res) => {
     try {
@@ -240,9 +276,10 @@ async function startServer() {
         databaseId: firebaseConfig.firestoreDatabaseId || '(default)'
       });
     } catch (err: any) {
-      console.error("Setup Status check failed. Error:", err.message);
+      console.error("Setup Status check failed. Error:", err);
       res.status(500).json({ 
-        error: "Erro de conexão com o banco de dados. " + err.message,
+        error: "Erro de conexão com o banco de dados. " + (err.message || 'Erro desconhecido'),
+        details: err.code || 'sem código',
         projectId: firebaseConfig.projectId,
         databaseId: firebaseConfig.firestoreDatabaseId,
       });
@@ -1556,10 +1593,21 @@ Este documento comprova a conformidade interna corporativa.
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // In production (Vercel), resolve dist folder correctly
+    const distPath = path.resolve(process.cwd(), "dist");
+    console.log(`[PROD] Checking dist path: ${distPath}`);
+    
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.get("*", (req, res) => { res.sendFile(path.join(distPath, "index.html")); });
+      app.get("*", (req, res) => { 
+        res.sendFile(path.join(distPath, "index.html")); 
+      });
+    } else {
+      // Fallback if dist is missing (common issue on some Vercel setups)
+      app.get("/", (req, res) => {
+        res.status(200).send("Nexus ERP Backend is Running. Frontend (dist) folder not found. Please ensure 'npm run build' completed.");
+      });
+      console.warn("[PROD] Warning: dist folder not found at " + distPath);
     }
   }
 
