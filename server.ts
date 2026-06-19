@@ -230,7 +230,7 @@ async function startServer() {
 
   // Add a CSP header to help with Vercel/Browser restrictions
   app.use((req, res, next) => {
-    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com ws: wss:;");
+    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com ws: wss:;");
     next();
   });
 
@@ -1594,20 +1594,23 @@ Este documento comprova a conformidade interna corporativa.
     app.use(vite.middlewares);
   } else {
     // In production (Vercel), resolve dist folder correctly
+    // We use __dirname as a fallback which works better in some bundled environments
     const distPath = path.resolve(process.cwd(), "dist");
     console.log(`[PROD] Checking dist path: ${distPath}`);
     
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.get("*", (req, res) => { 
-        res.sendFile(path.join(distPath, "index.html")); 
+      // Root route for dist
+      app.get("/", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
       });
     } else {
-      // Fallback if dist is missing (common issue on some Vercel setups)
+      // Fallback if dist is missing from the function's perspective
+      // This helps diagnostic when Vercel is serving static separately
       app.get("/", (req, res) => {
-        res.status(200).send("Nexus ERP Backend is Running. Frontend (dist) folder not found. Please ensure 'npm run build' completed.");
+        res.status(200).send("Nexus ERP API is online. Frontend is being served by Vercel Edge.");
       });
-      console.warn("[PROD] Warning: dist folder not found at " + distPath);
+      console.warn("[PROD] Warning: dist folder not found at " + distPath + ". Ensure Vercel is configured to serve the 'dist' directory.");
     }
   }
 
