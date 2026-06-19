@@ -2,7 +2,6 @@ import express from "express";
 import http from "http";
 import path from "path";
 import { Server as SocketIOServer } from "socket.io";
-import { createServer as createViteServer } from "vite";
 import { v4 as uuidv4 } from "uuid";
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, query, limit } from 'firebase/firestore/lite';
@@ -1553,6 +1552,7 @@ Este documento comprova a conformidade interna corporativa.
   });
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
