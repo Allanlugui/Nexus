@@ -1,0 +1,163 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // 2. Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Look up user document to check isSystemAdmin flag
+      // Use get() which bypasses security rules for the lookup
+      return isSignedIn() && get(/databases/$(database)/documents/erp_users/$(request.auth.uid)).data.isSystemAdmin == true;
+    }
+
+    // 3. Entity Validations
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'department', 'position']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 256 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.department is string &&
+             data.position is string;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'senderId', 'content', 'timestamp']) &&
+             data.id is string &&
+             data.senderId == request.auth.uid &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.timestamp == request.time;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'assigneeId', 'title', 'status']) &&
+             data.id is string &&
+             data.assigneeId is string &&
+             data.title is string && data.title.size() <= 256 &&
+             data.status in ['TODO', 'IN_PROGRESS', 'ON_HOLD', 'REVIEW', 'DONE', 'CANCELLED'];
+    }
+
+    // 4. Collection Rules
+
+    match /erp_users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) && 
+                    incoming().id == userId && 
+                    incoming().isSystemAdmin == false; // Users cannot self-promote
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming()) &&
+                    incoming().id == existing().id &&
+                    (isAdmin() || incoming().isSystemAdmin == existing().isSystemAdmin);
+      allow delete: if isAdmin();
+    }
+
+    match /erp_company/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /erp_vfs_folders/{folderId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(folderId) && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /erp_vfs_files/{fileId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(fileId) && incoming().uploaderId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().uploaderId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /erp_messages/{messageId} {
+      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    match /erp_approvals/{approvalId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(approvalId) && incoming().requesterId == request.auth.uid;
+      allow update: if isSignedIn() && (incoming().requesterId == existing().requesterId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /erp_reports/{reportId} {
+      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(reportId) && incoming().senderId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /erp_sales/{saleId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(saleId) && incoming().sellerId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().sellerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /erp_campaigns/{campaignId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /erp_budgets/{budgetId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /erp_budget_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(requestId) && incoming().requesterId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().requesterId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /erp_integration_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /erp_departments/{deptId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /erp_positions/{posId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(taskId) && isValidTask(incoming());
+      allow update: if isSignedIn() && (existing().assigneeId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+  }
+}

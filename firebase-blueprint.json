@@ -1,0 +1,239 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "department": { "type": "string" },
+        "position": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "superiorId": { "type": "string" },
+        "isSystemAdmin": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "DISMISSED"] },
+        "passwordHash": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "department", "position"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Company registration data.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "tradeName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "address": { "type": "string" },
+        "nexusApiKey": { "type": "string" },
+        "adminHubBaseUrl": { "type": "string" },
+        "adminHubApiKey": { "type": "string" },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "VfsFolder": {
+      "title": "VfsFolder",
+      "description": "Folder in the Virtual File System.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "parentId": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "isSystem": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "VfsFile": {
+      "title": "VfsFile",
+      "description": "File in the Virtual File System.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "folderId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "size": { "type": "number" },
+        "uploaderId": { "type": "string" },
+        "base64Data": { "type": "string" },
+        "uploadDate": { "type": "number" }
+      }
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "fileData": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" }
+      }
+    },
+    "ApprovalRequest": {
+      "title": "ApprovalRequest",
+      "description": "Financial or administrative approval request.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "requesterId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "rejectionReason": { "type": "string" },
+        "appealReason": { "type": "string" },
+        "signatures": { 
+          "type": "array",
+          "items": {
+             "type": "object",
+             "properties": {
+                "userId": { "type": "string" },
+                "userName": { "type": "string" },
+                "hash": { "type": "string" }
+             }
+          }
+        }
+      }
+    },
+    "Report": {
+       "title": "Report",
+       "description": "Sent report.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "senderId": { "type": "string" },
+          "recipientId": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "fileName": { "type": "string" },
+          "fileData": { "type": "string" },
+          "date": { "type": "number" }
+       }
+    },
+    "Sale": {
+       "title": "Sale",
+       "description": "Sales record.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "sellerId": { "type": "string" },
+          "value": { "type": "number" },
+          "client": { "type": "string" },
+          "product": { "type": "string" },
+          "date": { "type": "number" },
+          "status": { "type": "string" },
+          "hasInvoice": { "type": "boolean" }
+       }
+    },
+    "Campaign": {
+       "title": "Campaign",
+       "description": "Marketing campaign.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "budget": { "type": "number" },
+          "spent": { "type": "number" },
+          "status": { "type": "string" }
+       }
+    },
+    "Budget": {
+       "title": "Budget",
+       "description": "Budget allocation.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "month": { "type": "string" },
+          "type": { "type": "string" },
+          "targetId": { "type": "string" },
+          "amount": { "type": "number" },
+          "allocated": { "type": "number" }
+       }
+    },
+    "Task": {
+       "title": "Task",
+       "description": "Internal task.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "assigneeId": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "dueDate": { "type": "number" }
+       }
+    },
+    "IntegrationLog": {
+       "title": "IntegrationLog",
+       "description": "Log of external integrations.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" },
+          "direction": { "type": "string" },
+          "status": { "type": "string" },
+          "detail": { "type": "string" },
+          "timestamp": { "type": "number" }
+       }
+    }
+  },
+  "firestore": {
+    "/erp_users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/erp_company/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Company data"
+    },
+    "/erp_vfs_folders/{folderId}": {
+       "schema": { "$ref": "#/entities/VfsFolder" },
+       "description": "Folders"
+    },
+    "/erp_vfs_files/{fileId}": {
+       "schema": { "$ref": "#/entities/VfsFile" },
+       "description": "Files"
+    },
+    "/erp_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Chat messages"
+    },
+    "/erp_approvals/{approvalId}": {
+      "schema": { "$ref": "#/entities/ApprovalRequest" },
+      "description": "Approval requests"
+    },
+    "/erp_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Reports"
+    },
+    "/erp_sales/{saleId}": {
+      "schema": { "$ref": "#/entities/Sale" },
+      "description": "Sales records"
+    },
+    "/erp_campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Marketing campaigns"
+    },
+    "/erp_budgets/{budgetId}": {
+       "schema": { "$ref": "#/entities/Budget" },
+       "description": "Budgets"
+    },
+    "/erp_integration_logs/{logId}": {
+       "schema": { "$ref": "#/entities/IntegrationLog" },
+       "description": "Integration logs"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks"
+    }
+  }
+}

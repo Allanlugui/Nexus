@@ -1,0 +1,8 @@
+{
+  "name": "Nexus",
+  "description": "Sistema integrado para gestão empresarial, incluindo aprovações financeiras, comunicação interna e armazenagem de documentos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
