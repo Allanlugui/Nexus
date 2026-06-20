@@ -13,6 +13,8 @@ export interface User {
   superiorId: string | null;
   isSystemAdmin?: boolean;
   status?: 'ACTIVE' | 'DISMISSED';
+  phone?: string;
+  documentId?: string;
 }
 
 export interface Message {

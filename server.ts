@@ -207,6 +207,9 @@ async function sendToAdminHub(user: any) {
     email: user.email,
     department: user.department,
     position: user.position,
+    role: user.position,
+    phone: user.phone || "",
+    documentId: user.documentId || "",
     status: user.status || 'ACTIVE'
   };
 

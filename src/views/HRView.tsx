@@ -314,6 +314,27 @@ export function HRView() {
                  </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone</label>
+                   <input 
+                     value={editingUser.phone || ''} 
+                     onChange={e => setEditingUser(prev => ({...prev!, phone: e.target.value}))} 
+                     className="w-full border-gray-300 border rounded-lg p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none bg-white text-gray-800" 
+                     placeholder="Ex: 11988887777"
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-xs font-semibold text-gray-700 mb-1">CPF / Documento</label>
+                   <input 
+                     value={editingUser.documentId || ''} 
+                     onChange={e => setEditingUser(prev => ({...prev!, documentId: e.target.value}))} 
+                     className="w-full border-gray-300 border rounded-lg p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none bg-white text-gray-800"
+                     placeholder="Ex: 123.456.789-00"
+                   />
+                 </div>
+              </div>
+
               <div>
                  <label className="block text-xs font-semibold text-gray-700 mb-1">Foto do Colaborador (Upload de imagem)</label>
                  <div className="space-y-2">
