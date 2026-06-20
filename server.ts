@@ -142,15 +142,34 @@ async function getNexusApiKey() {
 }
 
 async function validateIntegrationAuth(req: any, res: any, next: any) {
-  const activeKey = await getNexusApiKey();
-  const requestKey = req.headers['x-api-key'] || 
-                     (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].substring(7) : null) ||
-                     req.query.api_key;
+  const activeNexusKey = await getNexusApiKey();
+  const activeAdminHubKey = (process.env.ADMINHUB_API_KEY || "").trim();
 
-  if (!requestKey || requestKey.trim() !== activeKey) {
+  // Read possible overrides from datastore
+  let storedAdminHubKey = "";
+  try {
+    const companies = await getAll('erp_company');
+    if (companies.length > 0) {
+      storedAdminHubKey = (companies[0].adminHubApiKey || "").trim();
+    }
+  } catch (err) {
+    console.error("Failed to read adminHubApiKey from database during validation:", err);
+  }
+
+  const requestKey = (req.headers['x-api-key'] || 
+                     (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].substring(7) : null) ||
+                     req.query.api_key || "").trim();
+
+  const isValidNexus = requestKey && requestKey === activeNexusKey;
+  const isValidAdminHub = requestKey && (
+    (activeAdminHubKey && requestKey === activeAdminHubKey) || 
+    (storedAdminHubKey && requestKey === storedAdminHubKey)
+  );
+
+  if (!isValidNexus && !isValidAdminHub) {
     console.warn(`[INTEGRATION AUTH REJECTED] Access attempt rejected due to key mismatch. Client provided: "${requestKey}"`);
     return res.status(401).json({
-      error: "Acesso não autorizado. Por favor forneça uma chave de API válida ('NEXUS_API_KEY') no cabeçalho 'x-api-key' ou 'Authorization: Bearer <chave>'."
+      error: "Acesso não autorizado. Por favor forneça uma chave de API válida ('NEXUS_API_KEY' ou 'ADMINHUB_API_KEY') no cabeçalho 'x-api-key' ou 'Authorization: Bearer <chave>'."
     });
   }
   next();
@@ -1498,10 +1517,32 @@ Este documento comprova a conformidade interna corporativa.
 
   // Human Resources Integration Receiver (From AdminHub Enterprise)
   const processHrIntegrationPayload = async (req: any, res: any) => {
-    const { id, name, email, department, position } = req.body;
+    let { id, name, email, department, position, phone, documentId, role } = req.body;
     
+    // Support alternate fields from AdminHub integration
+    if (!position && role) {
+      position = role;
+    }
+    if (!department) {
+      // Pick a logical default based on position / role
+      const posLower = (position || "").toLowerCase();
+      if (posLower.includes('consultor') || posLower.includes('vendedor') || posLower.includes('sales')) {
+        department = 'COMERCIAL';
+      } else if (posLower.includes('desenvolvedor') || posLower.includes('ti') || posLower.includes('dev') || posLower.includes('suporte')) {
+        department = 'TI';
+      } else if (posLower.includes('rh') || posLower.includes('recursos humanos') || posLower.includes('recrutador')) {
+        department = 'RH';
+      } else if (posLower.includes('financeiro') || posLower.includes('contador') || posLower.includes('faturamento')) {
+        department = 'FINANCEIRO';
+      } else if (posLower.includes('marketing') || posLower.includes('designer')) {
+        department = 'MARKETING';
+      } else {
+        department = 'ADMINISTRATIVO';
+      }
+    }
+
     if (!name || !email || !department || !position) {
-      const errorMsg = "Campos obrigatórios ausentes. Forneça name, email, department e position.";
+      const errorMsg = "Campos obrigatórios ausentes. Forneça pelo menos name, email, e role/position.";
       await logIntegration('HR_RECEPTION', 'INBOUND', 'ERROR', errorMsg, req.body);
       return res.status(400).json({ error: errorMsg });
     }
@@ -1516,6 +1557,8 @@ Este documento comprova a conformidade interna corporativa.
       existing.department = department;
       existing.position = position;
       existing.role = department; // keep role for backup
+      if (phone !== undefined) existing.phone = phone;
+      if (documentId !== undefined) existing.documentId = documentId;
       await saveDoc('erp_users', existing.id, existing);
       
       const detail = `Colaborador ${name} (${emailLower}) já possuía cadastro no Nexus; dados cadastrais de departamento e cargo sincronizados com sucesso.`;
@@ -1534,13 +1577,15 @@ Este documento comprova a conformidade interna corporativa.
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash("Nexus123!", salt); // temporary initial credentials
 
-    const newUser = {
+    const newUser: any = {
       id: id || uuidv4(),
       name,
       email: emailLower,
       department,
       position,
       role: department,
+      phone: phone || "",
+      documentId: documentId || "",
       avatarUrl: `https://api.dicebear.com/7.x/notionists/svg?seed=${name}`,
       superiorId: null, // Left empty as it represents isolated RH configs
       isSystemAdmin: false,
@@ -1553,15 +1598,15 @@ Este documento comprova a conformidade interna corporativa.
 
     // Automate folder establishment
     try {
-      const getOrCreateDir = async (name: string, parentId: string): Promise<string> => {
+      const getOrCreateDir = async (nameStr: string, parentId: string): Promise<string> => {
         const folders = await getAll('erp_vfs_folders');
-        const found = folders.find(f => f.name.toLowerCase() === name.toLowerCase() && f.parentId === parentId);
+        const found = folders.find(f => f.name.toLowerCase() === nameStr.toLowerCase() && f.parentId === parentId);
         if (found) return found.id;
         
         const folderId = uuidv4();
         await saveDoc('erp_vfs_folders', folderId, {
           id: folderId,
-          name,
+          name: nameStr,
           parentId,
           createdAt: Date.now()
         });
@@ -1598,6 +1643,7 @@ Este documento comprova a conformidade interna corporativa.
   };
 
   app.post("/api/integration/hr/nexus", validateIntegrationAuth, processHrIntegrationPayload);
+  app.post("/api/integration/hr/nexus-outbound", validateIntegrationAuth, processHrIntegrationPayload);
   app.post("/api/integration/hr/receive", validateIntegrationAuth, processHrIntegrationPayload);
 
   app.get("/api/tasks", async (req, res) => res.json(await getAll('tasks')));
