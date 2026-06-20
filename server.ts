@@ -946,7 +946,7 @@ Este documento comprova a conformidade interna corporativa.
     }
 
     await saveDoc('erp_approvals', id, approval);
-    io.emit('approval:updated', approval);
+    safeEmit('approval:updated', approval);
     res.json(approval);
   });
 
@@ -987,7 +987,7 @@ Este documento comprova a conformidade interna corporativa.
     approval.rejectionReason = undefined;
     approval.appealReason = reason || '';
     await saveDoc('erp_approvals', id, approval);
-    io.emit('approval:updated', approval);
+    safeEmit('approval:updated', approval);
     res.json(approval);
   });
 
@@ -1106,7 +1106,7 @@ Este documento comprova a conformidade interna corporativa.
      sale.status = 'APPROVED';
      sale.approvedBy = user.name;
      await saveDoc('erp_sales', id, sale);
-     io.emit('sale:updated', sale);
+     safeEmit('sale:updated', sale);
      res.json(sale);
   });
 
@@ -1122,7 +1122,7 @@ Este documento comprova a conformidade interna corporativa.
      sale.status = 'REJECTED';
      sale.rejectionReason = reason || 'Rejeitado por superior.';
      await saveDoc('erp_sales', id, sale);
-     io.emit('sale:updated', sale);
+     safeEmit('sale:updated', sale);
      res.json(sale);
   });
 
@@ -1281,7 +1281,7 @@ Este documento comprova a conformidade interna corporativa.
     }
 
     await saveDoc('erp_budget_requests', id, request);
-    io.emit('budget-request:updated', request);
+    safeEmit('budget-request:updated', request);
     res.json(request);
   });
 
@@ -1504,7 +1504,7 @@ Este documento comprova a conformidade interna corporativa.
     // Log the successful intake
     await logIntegration('SALES_RECEPTION', 'INBOUND', 'SUCCESS', `Pedido de venda do cliente ${sale.client} (Total R$ ${totalValue}) importado e criado no módulo de Vendas.`, data);
     
-    io.emit('sale:created', sale);
+    safeEmit('sale:created', sale);
 
     res.json({
       success: true,
