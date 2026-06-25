@@ -1415,9 +1415,6 @@ Este documento comprova a conformidade interna corporativa.
     const scope = [
       "ads_management",
       "ads_read",
-      "business_management",
-      "instagram_basic",
-      "instagram_manage_insights",
       "public_profile"
     ].join(",");
 
