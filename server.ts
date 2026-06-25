@@ -1402,26 +1402,67 @@ Este documento comprova a conformidade interna corporativa.
   
   // --- META MARKETING INTEGRATION ---
   
-  // 1. Meta OAuth Redirect
+  // 1. Meta OAuth Auth URL
   app.get("/api/marketing/meta/auth", (req, res) => {
     const clientId = process.env.FACEBOOK_CLIENT_ID;
     if (!clientId) return res.status(500).json({ error: "FACEBOOK_CLIENT_ID not configured" });
     
-    // Default callback: detect if running locally or on Vercel
+    // Use the protocol and host from the request to construct the callback URL
     const host = req.headers.host || "localhost:3000";
     const protocol = host.includes("localhost") ? "http" : "https";
     const redirectUri = `${protocol}://${host}/api/marketing/meta/callback`;
     
-    const scope = "ads_management,ads_read,business_management,instagram_basic,instagram_manage_insights";
-    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+    const scope = [
+      "ads_management",
+      "ads_read",
+      "business_management",
+      "instagram_basic",
+      "instagram_manage_insights",
+      "public_profile"
+    ].join(",");
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: scope,
+      response_type: 'code',
+      display: 'popup'
+    });
+
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
     
-    res.redirect(authUrl);
+    res.json({ url: authUrl });
   });
 
-  // 2. Meta OAuth Callback
-  app.get("/api/marketing/meta/callback", async (req, res) => {
-    const { code } = req.query;
-    if (!code) return res.redirect("/marketing?error=no_code");
+  // 2. Meta OAuth Callback (Popup Handler)
+  app.get(["/api/marketing/meta/callback", "/api/marketing/meta/callback/"], async (req, res) => {
+    const { code, error } = req.query;
+    
+    if (error) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({ type: 'META_AUTH_ERROR', error: '${error}' }, '*');
+              window.close();
+            </script>
+          </body>
+        </html>
+      `);
+    }
+
+    if (!code) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({ type: 'META_AUTH_ERROR', error: 'no_code' }, '*');
+              window.close();
+            </script>
+          </body>
+        </html>
+      `);
+    }
 
     try {
       const clientId = process.env.FACEBOOK_CLIENT_ID;
@@ -1453,10 +1494,40 @@ Este documento comprova a conformidade interna corporativa.
         updatedAt: Date.now()
       });
 
-      res.redirect("/marketing?success=meta_connected");
+      // Send success message to parent window and close popup
+      res.send(`
+        <html>
+          <head><title>Autenticado com Sucesso</title></head>
+          <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5;">
+            <div style="text-align: center; background: white; padding: 2rem; rounded: 1rem; shadow: 0 4px 6px rgba(0,0,0,0.1);">
+              <h2 style="color: #1877f2;">Meta Conectado!</h2>
+              <p>Esta janela fechará automaticamente...</p>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({ type: 'META_AUTH_SUCCESS' }, '*');
+                  setTimeout(() => window.close(), 1000);
+                } else {
+                  window.location.href = '/marketing';
+                }
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
     } catch (err: any) {
-      console.error("[META CALLBACK ERROR]", err.response?.data || err.message);
-      res.redirect("/marketing?error=callback_failed");
+      const errorMsg = err.response?.data?.error?.message || err.message;
+      console.error("[META CALLBACK ERROR]", errorMsg);
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({ type: 'META_AUTH_ERROR', error: '${errorMsg}' }, '*');
+              window.close();
+            </script>
+            <p>Erro na autenticação: ${errorMsg}</p>
+          </body>
+        </html>
+      `);
     }
   });
 

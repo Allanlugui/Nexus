@@ -137,19 +137,54 @@ export function MarketingView() {
     }
   };
 
+  const handleMetaAuth = async () => {
+    try {
+      const res = await fetch('/api/marketing/meta/auth');
+      if (!res.ok) throw new Error("Falha ao obter URL de autenticação");
+      const { url } = await res.json();
+      
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      const popup = window.open(
+        url,
+        'meta_oauth_popup',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      if (!popup) {
+        alert("O bloqueador de popups impediu a conexão. Por favor, autorize popups para este site.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao iniciar autenticação com Meta.");
+    }
+  };
+
   useEffect(() => {
     loadCampaigns();
     fetchCalendarEvents();
     fetchMktBudget();
     fetchMetaAccounts();
 
-    // Check for success params from OAuth redirect
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('success') === 'meta_connected') {
-      alert("Integração com Meta realizada com sucesso!");
-      // Clean URL
-      window.history.replaceState({}, document.title, "/marketing");
-    }
+    const handleMessage = (event: MessageEvent) => {
+      // Validate origin to ensure it's from our app
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.includes('vercel.app')) {
+        return;
+      }
+
+      if (event.data?.type === 'META_AUTH_SUCCESS') {
+        fetchMetaAccounts();
+      } else if (event.data?.type === 'META_AUTH_ERROR') {
+        alert(`Erro na integração Meta: ${event.data.error}`);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   useEffect(() => {
@@ -489,7 +524,7 @@ export function MarketingView() {
             </button>
           ) : (
             <button 
-              onClick={() => isMetaConnected ? setIsCreatingMetaCampaign(true) : window.location.href = '/api/marketing/meta/auth'}
+              onClick={() => isMetaConnected ? setIsCreatingMetaCampaign(true) : handleMetaAuth()}
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-100 active:scale-95"
             >
                {isMetaConnected ? <><Plus size={18} /> Criar Campanha Meta</> : <><Facebook size={18} /> Conectar Meta Ads</>}
@@ -686,7 +721,7 @@ export function MarketingView() {
                 <p className="text-sm text-gray-500 font-medium">Integre diretamente com o Gerenciador de Anúncios para visualizar métricas reais e criar campanhas de Facebook e Instagram.</p>
               </div>
               <button 
-                onClick={() => window.location.href = '/api/marketing/meta/auth'}
+                onClick={handleMetaAuth}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center gap-3 mx-auto"
               >
                 <Facebook size={20} /> Autenticar via Meta OAuth
@@ -852,7 +887,7 @@ export function MarketingView() {
             <p className="text-sm font-black text-gray-900 tracking-tight">{format(new Date(), "HH:mm:ss", { locale: ptBR })}</p>
           </div>
           <button 
-            onClick={() => window.location.href = '/api/marketing/meta/auth'}
+            onClick={handleMetaAuth}
             className="bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-900 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg"
           >
             {isMetaConnected ? 'Recarregar Tokens' : 'Configurar OAuth'}
