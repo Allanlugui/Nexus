@@ -8,6 +8,8 @@ import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, quer
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
+import axios from "axios";
+
 let firebaseConfig: any;
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -1397,6 +1399,137 @@ Este documento comprova a conformidade interna corporativa.
   });
 
   app.get("/api/campaigns", async (req, res) => res.json(await getAll('erp_campaigns')));
+  
+  // --- META MARKETING INTEGRATION ---
+  
+  // 1. Meta OAuth Redirect
+  app.get("/api/marketing/meta/auth", (req, res) => {
+    const clientId = process.env.FACEBOOK_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "FACEBOOK_CLIENT_ID not configured" });
+    
+    // Default callback: detect if running locally or on Vercel
+    const host = req.headers.host || "localhost:3000";
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/api/marketing/meta/callback`;
+    
+    const scope = "ads_management,ads_read,business_management,instagram_basic,instagram_manage_insights";
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+    
+    res.redirect(authUrl);
+  });
+
+  // 2. Meta OAuth Callback
+  app.get("/api/marketing/meta/callback", async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.redirect("/marketing?error=no_code");
+
+    try {
+      const clientId = process.env.FACEBOOK_CLIENT_ID;
+      const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+      
+      const host = req.headers.host || "localhost:3000";
+      const protocol = host.includes("localhost") ? "http" : "https";
+      const redirectUri = `${protocol}://${host}/api/marketing/meta/callback`;
+
+      // Exchange code for access token
+      const tokenRes = await axios.get(`https://graph.facebook.com/v19.0/oauth/access_token`, {
+        params: {
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          code
+        }
+      });
+
+      const { access_token, expires_in } = tokenRes.data;
+
+      // Save to Firestore
+      const integrationId = "meta_marketing_primary";
+      await saveDoc('oauth_integrations', integrationId, {
+        id: integrationId,
+        platform: 'meta',
+        accessToken: access_token,
+        expiresAt: Date.now() + (expires_in * 1000),
+        updatedAt: Date.now()
+      });
+
+      res.redirect("/marketing?success=meta_connected");
+    } catch (err: any) {
+      console.error("[META CALLBACK ERROR]", err.response?.data || err.message);
+      res.redirect("/marketing?error=callback_failed");
+    }
+  });
+
+  // 3. Meta Ad Accounts
+  app.get("/api/marketing/meta/accounts", async (req, res) => {
+    try {
+      const integration = await getById('oauth_integrations', 'meta_marketing_primary');
+      if (!integration?.accessToken) return res.status(401).json({ error: "Meta not connected" });
+
+      const accountsRes = await axios.get(`https://graph.facebook.com/v19.0/me/adaccounts`, {
+        params: {
+          access_token: integration.accessToken,
+          fields: 'name,account_id,currency,account_status'
+        }
+      });
+
+      res.json(accountsRes.data.data);
+    } catch (err: any) {
+      console.error("[META ACCOUNTS ERROR]", err.response?.data || err.message);
+      res.status(500).json({ error: "Failed to fetch ad accounts" });
+    }
+  });
+
+  // 4. Meta Campaigns & Metrics (Insights)
+  app.get("/api/marketing/meta/insights", async (req, res) => {
+    const { adAccountId } = req.query;
+    if (!adAccountId) return res.status(400).json({ error: "adAccountId required" });
+
+    try {
+      const integration = await getById('oauth_integrations', 'meta_marketing_primary');
+      if (!integration?.accessToken) return res.status(401).json({ error: "Meta not connected" });
+
+      // Fetch campaigns with insights
+      const insightsRes = await axios.get(`https://graph.facebook.com/v19.0/${adAccountId}/campaigns`, {
+        params: {
+          access_token: integration.accessToken,
+          fields: 'name,status,objective,daily_budget,lifetime_budget,insights{spend,clicks,impressions,reach,inline_link_clicks,engagement_rate_ranking}',
+          limit: 50
+        }
+      });
+
+      res.json(insightsRes.data.data);
+    } catch (err: any) {
+      console.error("[META INSIGHTS ERROR]", err.response?.data || err.message);
+      res.status(500).json({ error: "Failed to fetch campaign insights" });
+    }
+  });
+
+  // 5. Create Meta Campaign (Simplified)
+  app.post("/api/marketing/meta/campaigns", async (req, res) => {
+    const { adAccountId, name, objective, dailyBudget, status } = req.body;
+    
+    try {
+      const integration = await getById('oauth_integrations', 'meta_marketing_primary');
+      if (!integration?.accessToken) return res.status(401).json({ error: "Meta not connected" });
+
+      const createRes = await axios.post(`https://graph.facebook.com/v19.0/${adAccountId}/campaigns`, null, {
+        params: {
+          access_token: integration.accessToken,
+          name,
+          objective,
+          status: status || 'PAUSED',
+          daily_budget: dailyBudget ? Math.round(dailyBudget * 100) : 1000, // in cents
+          special_ad_categories: 'NONE'
+        }
+      });
+
+      res.json(createRes.data);
+    } catch (err: any) {
+      console.error("[META CREATE CAMPAIGN ERROR]", err.response?.data || err.message);
+      res.status(500).json({ error: "Failed to create campaign" });
+    }
+  });
 
   app.post("/api/campaigns", async (req, res) => {
     const campaign = { id: uuidv4(), ...req.body };
