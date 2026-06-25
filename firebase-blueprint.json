@@ -184,6 +184,20 @@
           "detail": { "type": "string" },
           "timestamp": { "type": "number" }
        }
+    },
+    "OAuthIntegration": {
+       "title": "OAuthIntegration",
+       "description": "Stored OAuth tokens for social media integrations.",
+       "type": "object",
+       "properties": {
+          "id": { "type": "string" },
+          "platform": { "type": "string" },
+          "userId": { "type": "string" },
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresAt": { "type": "number" },
+          "updatedAt": { "type": "number" }
+       }
     }
   },
   "firestore": {
@@ -232,8 +246,12 @@
        "description": "Integration logs"
     },
     "/tasks/{taskId}": {
-      "schema": { "$ref": "#/entities/Task" },
-      "description": "Tasks"
+       "schema": { "$ref": "#/entities/Task" },
+       "description": "Tasks"
+    },
+    "/oauth_integrations/{integrationId}": {
+       "schema": { "$ref": "#/entities/OAuthIntegration" },
+       "description": "Social media OAuth tokens"
     }
   }
 }

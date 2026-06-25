@@ -15,6 +15,33 @@ export interface User {
   status?: 'ACTIVE' | 'DISMISSED';
   phone?: string;
   documentId?: string;
+
+  // HR Expansion
+  hrStatus?: 'ONBOARDING' | 'INTERVIEW' | 'ACTIVE' | 'OFFBOARDING';
+  performanceReviews?: { date: number; rating: number; notes: string }[];
+  salaryHistory?: { date: number; amount: number; reason: string }[];
+  benefits?: string[];
+  documents?: { id: string; name: string; url: string; type: string; uploadDate: number }[];
+}
+
+export interface SocialIntegration {
+  platform: 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'TWITTER' | 'X';
+  connected: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  accountId?: string;
+  accountName?: string;
+}
+
+export interface SocialMetric {
+  id: string;
+  platform: 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'TWITTER' | 'X';
+  followers: number;
+  engagementRate: number; // percentage
+  reach: number;
+  posts: number;
+  date: number;
 }
 
 export interface Message {

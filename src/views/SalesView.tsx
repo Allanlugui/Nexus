@@ -15,7 +15,8 @@ import {
   TrendingUp, 
   User as UserIcon, 
   ShoppingBag, 
-  FileText 
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -43,8 +44,11 @@ export function SalesView() {
   // Integration Logs State
   const [integrationLogs, setIntegrationLogs] = useState<any[]>([]);
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const target = 50000;
+
+  const [activeTab, setActiveTab] = useState<'LEDGER' | 'DASHBOARD'>('LEDGER');
 
   const loadSales = async () => {
     try {
@@ -151,12 +155,60 @@ export function SalesView() {
         alert(approve ? "Venda homologada e integrada nos históricos financeiros!" : "Venda rejeitada com sucesso.");
         loadSales();
       } else {
-        const err = await res.json();
-        alert(err.error || "Erro ao processar alteração.");
+        const data = await res.json();
+        alert(data.error || "Erro ao processar alteração.");
       }
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteSale = async (saleId: string) => {
+    if (!window.confirm("Deseja realmente apagar esta transação?")) return;
+    try {
+      const res = await fetch(`/api/sales/${saleId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSales(prev => prev.filter(s => s.id !== saleId));
+        setSelectedIds(prev => prev.filter(id => id !== saleId));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao apagar.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Deseja realmente apagar as ${selectedIds.length} transações selecionadas?`)) return;
+    try {
+      const res = await fetch('/api/sales/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+      if (res.ok) {
+        setSales(prev => prev.filter(s => !selectedIds.includes(s.id)));
+        setSelectedIds([]);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao apagar em massa.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredSales.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredSales.map(s => s.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   // Perform client filter calculations
@@ -173,7 +225,7 @@ export function SalesView() {
   // Sales statistics KPI
   const approvedSales = filteredSales.filter(s => s.status === 'APPROVED');
   const totalSalesValue = approvedSales.reduce((acc, s) => acc + s.value, 0);
-  const pendingSales = filteredSales.filter(s => s.status === 'PENDING');
+  const pendingSales = filteredSales.filter(s => s.status === 'PENDING_APPROVAL');
   const totalPendingValue = pendingSales.reduce((acc, s) => acc + s.value, 0);
 
   const progress = Math.min((totalSalesValue / target) * 100, 100);
@@ -187,15 +239,37 @@ export function SalesView() {
             <DollarSign className="text-emerald-600" /> Registro e Homologação de Vendas
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Lance novos contratos comerciais, confira o livro-caixa de comissões e aprove relatórios comerciais de liderados.
+            Lance novos contratos comerciais, confira o livro-caixa de comissões e acompanhe métricas de conversão.
           </p>
         </div>
-        <button 
-          onClick={() => setRegisteringNewSale(!registeringNewSale)}
-          className="cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-xs"
-        >
-          <Plus size={16} /> {registeringNewSale ? "Ocultar Lançamento" : "Registrar Venda"}
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setActiveTab('LEDGER')}
+            className={`cursor-pointer px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeTab === 'LEDGER' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          >
+            Livro Caixa
+          </button>
+          <button 
+            onClick={() => setActiveTab('DASHBOARD')}
+            className={`cursor-pointer px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeTab === 'DASHBOARD' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          >
+            Dashboard & Funil
+          </button>
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleBulkDelete}
+              className="cursor-pointer bg-rose-600 text-white hover:bg-rose-700 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-md ml-2 transition-all transform hover:scale-105"
+            >
+              <Trash2 size={16} /> Apagar Selecionados ({selectedIds.length})
+            </button>
+          )}
+          <button 
+            onClick={() => setRegisteringNewSale(!registeringNewSale)}
+            className="cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-xs ml-2"
+          >
+            <Plus size={16} /> {registeringNewSale ? "Ocultar Lançamento" : "Registrar Venda"}
+          </button>
+        </div>
       </div>
 
       {/* KPI Overview */}
@@ -279,8 +353,10 @@ export function SalesView() {
         </form>
       )}
 
-      {/* Main filter interface */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs text-left space-y-4">
+      {activeTab === 'LEDGER' && (
+        <>
+          {/* Main filter interface */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs text-left space-y-4">
         <h4 className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-1"><Search size={14} /> Filtros do Ledger de Vendas</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -309,6 +385,14 @@ export function SalesView() {
           <table className="w-full min-w-[900px] border-collapse bg-transparent text-xs text-left text-gray-600">
             <thead>
               <tr className="border-b border-gray-200 text-gray-400 uppercase text-[9px] font-black tracking-widest bg-gray-50/40">
+                <th className="py-3 px-4 w-10">
+                  <input 
+                    type="checkbox" 
+                    className="rounded text-emerald-600 border-gray-300 cursor-pointer" 
+                    checked={filteredSales.length > 0 && selectedIds.length === filteredSales.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="py-3 px-4">Cliente / Código</th>
                 <th className="py-3 px-4">Produto / Serviço</th>
                 <th className="py-3 px-4">Autoria (Vendedor)</th>
@@ -316,7 +400,19 @@ export function SalesView() {
                 <th className="py-3 px-4 text-center">Fatura / NF-e / Status</th>
                 <th className="py-3 px-4 text-center">Homologação / Etapa</th>
                 <th className="py-3 px-4 text-right">Valor Líquido / Venda</th>
-                <th className="py-3 px-4 text-right">Ações</th>
+                <th className="py-3 px-4 text-right">
+                  {selectedIds.length > 0 ? (
+                    <button 
+                      onClick={handleBulkDelete} 
+                      className="text-rose-600 hover:text-rose-800 cursor-pointer p-1 flex items-center gap-1 ml-auto font-black"
+                      title="Apagar selecionados"
+                    >
+                      <Trash2 size={14} /> <span className="text-[10px]">APAGAR</span>
+                    </button>
+                  ) : (
+                    "Ações"
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -326,7 +422,15 @@ export function SalesView() {
                 const canHomologate = currentUser?.isSystemAdmin || currentUser?.position === 'CEO' || isSubordinate;
 
                 return (
-                  <tr key={sale.id} className="hover:bg-slate-50/40 transition-colors">
+                  <tr key={sale.id} className={`hover:bg-slate-50/40 transition-colors ${selectedIds.includes(sale.id) ? 'bg-emerald-50/30' : ''}`}>
+                    <td className="py-3 px-4">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-emerald-600 border-gray-300 cursor-pointer" 
+                        checked={selectedIds.includes(sale.id)}
+                        onChange={() => toggleSelectOne(sale.id)}
+                      />
+                    </td>
                     <td className="py-3 px-4 text-gray-900">
                       <div className="font-bold flex flex-wrap items-center gap-1.5">
                         {sale.clientCode && <span className="bg-emerald-50 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded font-mono font-black" title="Código de Integração">{sale.clientCode}</span>}
@@ -403,26 +507,33 @@ export function SalesView() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {sale.status === 'PENDING_APPROVAL' && canHomologate ? (
-                        <div className="flex justify-end gap-1">
-                          <button 
-                            onClick={() => handleApproveSale(sale.id, true)} 
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-1 rounded-md cursor-pointer"
-                            title="Homologar venda faturada"
-                          >
-                            <Check size={12} />
-                          </button>
-                          <button 
-                            onClick={() => handleApproveSale(sale.id, false)} 
-                            className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-md cursor-pointer"
-                            title="Rejeitar venda"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 italic">Sem pendências</span>
-                      )}
+                      <div className="flex justify-end gap-1">
+                        {sale.status === 'PENDING_APPROVAL' && canHomologate && (
+                          <>
+                            <button 
+                              onClick={() => handleApproveSale(sale.id, true)} 
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white p-1 rounded-md cursor-pointer"
+                              title="Homologar venda faturada"
+                            >
+                              <Check size={12} />
+                            </button>
+                            <button 
+                              onClick={() => handleApproveSale(sale.id, false)} 
+                              className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-md cursor-pointer"
+                              title="Rejeitar venda"
+                            >
+                              <X size={12} />
+                            </button>
+                          </>
+                        )}
+                        <button 
+                          onClick={() => handleDeleteSale(sale.id)} 
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-1.5 rounded-md cursor-pointer ml-1 transition-colors"
+                          title="Apagar transação"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -440,6 +551,59 @@ export function SalesView() {
           </table>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Dashboard Tab */}
+      {activeTab === 'DASHBOARD' && (
+        <div className="space-y-6">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs text-left">
+            <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+              <TrendingUp size={18} className="text-emerald-600" /> Funil de Conversão Comercial
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Leads (Total)</p>
+                <h4 className="text-2xl font-black text-slate-800">{sales.length + 42}</h4>
+                <p className="text-[10px] text-slate-400 mt-1">Estimado / Captação</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
+                <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Negociações</p>
+                <h4 className="text-2xl font-black text-blue-900">{sales.length}</h4>
+                <p className="text-[10px] text-blue-500 mt-1">({Math.round((sales.length / (sales.length + 42)) * 100)}% conversão)</p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 text-center">
+                <p className="text-xs font-bold text-yellow-600 uppercase tracking-widest mb-1">Em Auditoria</p>
+                <h4 className="text-2xl font-black text-yellow-900">{sales.filter(s => s.status === 'PENDING_APPROVAL').length}</h4>
+                <p className="text-[10px] text-yellow-500 mt-1">Aguardando Homologação</p>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">
+                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Fechamento</p>
+                <h4 className="text-2xl font-black text-emerald-900">{sales.filter(s => s.status === 'APPROVED').length}</h4>
+                <p className="text-[10px] text-emerald-500 mt-1">({Math.round((sales.filter(s => s.status === 'APPROVED').length / sales.length) * 100)}% das negociações)</p>
+              </div>
+            </div>
+            
+            <div className="mt-6">
+              <h4 className="text-sm font-bold text-gray-800 mb-3">Histórico de Performance por Cliente (Top 5)</h4>
+              <div className="space-y-2">
+                {Array.from(new Set(sales.map(s => s.client))).slice(0,5).map((client, idx) => {
+                  const clientSales = sales.filter(s => s.client === client && s.status === 'APPROVED');
+                  const clientTotal = clientSales.reduce((acc, s) => acc + s.value, 0);
+                  if (clientTotal === 0) return null;
+                  return (
+                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-sm font-semibold text-slate-700">{client}</span>
+                      <span className="text-sm font-black text-emerald-700">R$ {clientTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Connected Integration Panel */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs text-left space-y-4">

@@ -335,6 +335,31 @@ export function HRView() {
                  </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-xs font-semibold text-gray-700 mb-1">Status RH (Jornada)</label>
+                   <select 
+                     value={editingUser.hrStatus || 'ACTIVE'} 
+                     onChange={e => setEditingUser(prev => ({...prev!, hrStatus: e.target.value as any}))} 
+                     className="w-full border-gray-300 border rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                   >
+                      <option value="INTERVIEW">Em Processo Seletivo</option>
+                      <option value="ONBOARDING">Onboarding / Integração</option>
+                      <option value="ACTIVE">Ativo / Regular</option>
+                      <option value="OFFBOARDING">Aviso Prévio / Offboarding</option>
+                   </select>
+                 </div>
+                 <div>
+                   <label className="block text-xs font-semibold text-gray-700 mb-1">Benefícios</label>
+                   <input 
+                     value={editingUser.benefits?.join(', ') || ''} 
+                     onChange={e => setEditingUser(prev => ({...prev!, benefits: e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}))} 
+                     className="w-full border-gray-300 border rounded-lg p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none bg-white text-gray-800"
+                     placeholder="Ex: VR, VT, Plano Saúde"
+                   />
+                 </div>
+              </div>
+
               <div>
                  <label className="block text-xs font-semibold text-gray-700 mb-1">Foto do Colaborador (Upload de imagem)</label>
                  <div className="space-y-2">

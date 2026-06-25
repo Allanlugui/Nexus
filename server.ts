@@ -98,6 +98,12 @@ async function saveDoc(colName: string, id: string, data: any) {
   return cleaned;
 }
 
+async function removeDoc(colName: string, id: string) {
+  const docRef = doc(db, colName, id);
+  await deleteDoc(docRef);
+  return true;
+}
+
 async function deleteDocument(colName: string, id: string) {
   const docRef = doc(db, colName, id);
   await deleteDoc(docRef);
@@ -445,6 +451,48 @@ async function startServer() {
   // Trigger Vfs tree pre-population
   initializeVfsTree();
 
+  async function seedSales() {
+    try {
+      const sales = await getAll('erp_sales');
+      if (sales.length === 0) {
+        const users = await getAll('erp_users');
+        const admin = users.find(u => u.isSystemAdmin) || users[0];
+        const sellerId = admin ? admin.id : 'system';
+
+        const defaultSales = [
+          {
+            id: uuidv4(),
+            sellerId,
+            value: 12500.00,
+            client: "Nexus Corp",
+            product: "Licença Enterprise",
+            date: Date.now() - (86400000 * 5),
+            status: 'APPROVED',
+            hasInvoice: true,
+            createdAt: Date.now()
+          },
+          {
+            id: uuidv4(),
+            sellerId,
+            value: 4500.00,
+            client: "Alpha Systems",
+            product: "Suporte Premium",
+            date: Date.now() - (86400000 * 2),
+            status: 'PENDING_APPROVAL',
+            hasInvoice: false,
+            createdAt: Date.now()
+          }
+        ];
+        for (const s of defaultSales) {
+          await saveDoc('erp_sales', s.id, s);
+        }
+        console.log(`[SEED] Pre-populated ${defaultSales.length} default sales records to erp_sales.`);
+      }
+    } catch (err) {
+      console.error("[SEED] Seeding sales failed:", err);
+    }
+  }
+
   async function seedSectorsAndPositions() {
     try {
       const depts = await getAll('erp_departments');
@@ -512,7 +560,9 @@ async function startServer() {
 
   // Trigger migration and seeding
   if (process.env.VERCEL !== "1") {
-    runDatabaseMigration().then(() => seedSectorsAndPositions());
+    runDatabaseMigration()
+      .then(() => seedSectorsAndPositions())
+      .then(() => seedSales());
   } else {
     console.log("[SERVERLESS] Skipping background seeding on Vercel to optimize startup. Use /api/system/diag-db if needed.");
   }
@@ -1073,6 +1123,24 @@ Este documento comprova a conformidade interna corporativa.
   });
 
   app.get("/api/sales", async (req, res) => res.json(await getAll('erp_sales')));
+
+  app.delete("/api/sales/:id", async (req, res) => {
+    const { id } = req.params;
+    await removeDoc('erp_sales', id);
+    safeEmit('sale:deleted', id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/sales/bulk-delete", async (req, res) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: "IDs must be an array" });
+    
+    for (const id of ids) {
+      await removeDoc('erp_sales', id);
+    }
+    safeEmit('sales:bulk-deleted', ids);
+    res.json({ success: true, count: ids.length });
+  });
 
   app.post("/api/sales", async (req, res) => {
      const { sellerId, value, client, product, date, hasInvoice, invoiceNumber, documentData, documentName } = req.body;

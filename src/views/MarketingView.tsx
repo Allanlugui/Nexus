@@ -16,6 +16,8 @@ export function MarketingView() {
   
   const [editingCampaign, setEditingCampaign] = useState<Partial<Campaign> | null>(null);
 
+  const [socialMetrics, setSocialMetrics] = useState<any[]>([]);
+
   // Simulated role for easy workflow verification by the user
   const [simulatedRole, setSimulatedRole] = useState<'AUTO' | 'MARKETING_DIR' | 'MARKETING_STAFF'>('AUTO');
   const [mktBudgetLimit, setMktBudgetLimit] = useState<number>(0);
@@ -365,75 +367,130 @@ export function MarketingView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-           <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-             <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Megaphone size={18} /> Publicidade em Andamento</h3>
-           </div>
-           <div className="divide-y divide-gray-100">
-             {campaigns.map(c => (
-               <div key={c.id} className="p-6 hover:bg-gray-50/50 transition-colors group text-left">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{c.title}</h4>
-                      <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
-                        <CalendarIcon size={14} /> 
-                        {format(c.startDate, "dd MMM", { locale: ptBR })} - {format(c.endDate, "dd MMM yyyy", { locale: ptBR })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {c.status === 'PLANNING' && isMarketingDir && (
-                        <button 
-                          type="button"
-                          onClick={() => handleApproveCampaign(c, true)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-1 px-3 rounded-lg flex items-center gap-1 shadow-sm shrink-0 transition-all cursor-pointer"
-                        >
-                          Aprovar Campanha
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+             <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+               <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Megaphone size={18} /> Publicidade em Andamento</h3>
+             </div>
+             <div className="divide-y divide-gray-100">
+               {campaigns.map(c => (
+                 <div key={c.id} className="p-6 hover:bg-gray-50/50 transition-colors group text-left">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{c.title}</h4>
+                        <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                          <CalendarIcon size={14} /> 
+                          {format(c.startDate, "dd MMM", { locale: ptBR })} - {format(c.endDate, "dd MMM yyyy", { locale: ptBR })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {c.status === 'PLANNING' && isMarketingDir && (
+                          <button 
+                            type="button"
+                            onClick={() => handleApproveCampaign(c, true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-1 px-3 rounded-lg flex items-center gap-1 shadow-sm shrink-0 transition-all cursor-pointer"
+                          >
+                            Aprovar Campanha
+                          </button>
+                        )}
+  
+                        {c.status === 'ACTIVE' && isMarketingDir && (
+                          <button 
+                            type="button"
+                            onClick={() => handleApproveCampaign(c, false)}
+                            className="bg-yellow-150 hover:bg-yellow-250 text-yellow-905 text-[11px] font-bold py-1 px-3 rounded-lg flex items-center gap-1 shadow-sm shrink-0 transition-all font-mono cursor-pointer"
+                          >
+                            Recuar P/ Planejamento
+                          </button>
+                        )}
+  
+                        <button onClick={() => setEditingCampaign(c)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity p-1">
+                          <Edit2 size={16} />
                         </button>
-                      )}
-
-                      {c.status === 'ACTIVE' && isMarketingDir && (
-                        <button 
-                          type="button"
-                          onClick={() => handleApproveCampaign(c, false)}
-                          className="bg-yellow-150 hover:bg-yellow-250 text-yellow-905 text-[11px] font-bold py-1 px-3 rounded-lg flex items-center gap-1 shadow-sm shrink-0 transition-all font-mono cursor-pointer"
-                        >
-                          Recuar P/ Planejamento
-                        </button>
-                      )}
-
-                      <button onClick={() => setEditingCampaign(c)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity p-1">
-                        <Edit2 size={16} />
-                      </button>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        c.status === 'ACTIVE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        c.status === 'FINISHED' ? 'bg-gray-100 text-gray-700 border-gray-200' :
-                        'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        {c.status === 'ACTIVE' ? 'Em Execução' : c.status === 'FINISHED' ? 'Finalizada' : 'Planejamento'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mt-6">
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                      <p className="text-xs text-gray-500 mb-1">Gasto Atual</p>
-                      <p className="font-semibold text-gray-900">R$ {c.spent.toLocaleString()} <span className="text-xs font-normal text-gray-500">/ R$ {c.budget.toLocaleString()}</span></p>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                        <div className="bg-gray-800 h-1.5 rounded-full" style={{ width: `${Math.min((c.spent/(c.budget||1))*100, 100)}%` }}></div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                          c.status === 'ACTIVE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          c.status === 'FINISHED' ? 'bg-gray-100 text-gray-700 border-gray-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {c.status === 'ACTIVE' ? 'Em Execução' : c.status === 'FINISHED' ? 'Finalizada' : 'Planejamento'}
+                        </span>
                       </div>
                     </div>
-                    <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100/50">
-                      <p className="text-xs text-emerald-600 mb-1">Engajamento Atual</p>
-                      <p className="font-semibold text-emerald-700">{c.engagement}%</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Gasto Atual</p>
+                        <p className="font-semibold text-gray-900">R$ {c.spent.toLocaleString()} <span className="text-xs font-normal text-gray-500">/ R$ {c.budget.toLocaleString()}</span></p>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                          <div className="bg-gray-800 h-1.5 rounded-full" style={{ width: `${Math.min((c.spent/(c.budget||1))*100, 100)}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100/50">
+                        <p className="text-xs text-emerald-600 mb-1">Engajamento Atual</p>
+                        <p className="font-semibold text-emerald-700">{c.engagement}%</p>
+                      </div>
+                    </div>
+                 </div>
+               ))}
+               {campaigns.length === 0 && <div className="p-8 text-center text-gray-500">Nenhuma campanha cadastrada.</div>}
+             </div>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden p-6 text-left">
+             <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
+               Integração de Redes Sociais (AdminHub Engine)
+             </h3>
+             <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+               Conecte suas contas para acompanhar métricas de alcance, engajamento e automatizar postagens diretamente pelo Nexus ERP. 
+               O tráfego de autenticação OAuth (Instagram, Facebook, TikTok, X) é roteado de forma segura e criptografado no banco de dados Firebase/Firestore (via Vercel Edge).
+             </p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-gray-200 rounded-xl p-4 flex justify-between items-center bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">IG</div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">Instagram</p>
+                      <p className="text-[10px] text-gray-500">dicas_by_ale</p>
                     </div>
                   </div>
-               </div>
-             ))}
-             {campaigns.length === 0 && <div className="p-8 text-center text-gray-500">Nenhuma campanha cadastrada.</div>}
-           </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded">Conectado</span>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 flex justify-between items-center bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-xs">FB</div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">Facebook</p>
+                      <p className="text-[10px] text-gray-500">/dicasbyale</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded">Conectado</span>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 flex justify-between items-center bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-black flex items-center justify-center text-white font-bold text-xs">TK</div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">TikTok</p>
+                      <p className="text-[10px] text-gray-400">Não conectado</p>
+                    </div>
+                  </div>
+                  <button className="text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-2 py-1 rounded transition-colors cursor-pointer">Conectar OAuth</button>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4 flex justify-between items-center bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-gray-900 flex items-center justify-center text-white font-bold text-xs">X</div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">Twitter / X</p>
+                      <p className="text-[10px] text-gray-400">Não conectado</p>
+                    </div>
+                  </div>
+                  <button className="text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-2 py-1 rounded transition-colors cursor-pointer">Conectar OAuth</button>
+                </div>
+             </div>
+          </div>
         </div>
 
-        <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm h-fit">
+        <div className="space-y-6">
+          <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm h-fit">
            <h3 className="font-semibold text-gray-900 mb-6 flex items-center gap-2"><CalendarIcon size={18} /> Google Calendar</h3>
            
            <div className="space-y-4">
@@ -467,6 +524,7 @@ export function MarketingView() {
                 {isScheduling ? 'Agendando...' : '+ Agendar Post no Calendar'}
               </button>
            </div>
+        </div>
         </div>
       </div>
     </div>
