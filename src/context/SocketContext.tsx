@@ -13,7 +13,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const newSocket = io();
+    if (import.meta.env.VITE_IS_VERCEL === 'true') {
+      console.log('[Socket] Disabled on Vercel serverless environment to prevent 404s.');
+      return;
+    }
+
+    const newSocket = io({
+      reconnectionAttempts: 3
+    });
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
