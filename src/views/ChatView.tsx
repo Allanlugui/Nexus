@@ -59,11 +59,6 @@ export function ChatView({ initialActiveUserId }: { initialActiveUserId?: string
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        alert("O tamanho do arquivo excede o limite máximo permitido no chat (800KB).");
-        e.target.value = '';
-        return;
-      }
       const reader = new FileReader();
       reader.onload = (ev) => {
         setAttachment({

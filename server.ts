@@ -249,7 +249,7 @@ async function sendToAdminHub(user: any) {
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
-  const io = process.env.VERCEL === "1" ? null : new SocketIOServer(server, { cors: { origin: "*" } });
+  const io = process.env.VERCEL === "1" ? null : new SocketIOServer(server, { cors: { origin: "*" }, maxHttpBufferSize: 1e9 });
 
   // Helper to emit if io exists
   const safeEmit = (event: string, data: any) => {
@@ -283,8 +283,8 @@ async function startServer() {
   };
 
   const PORT = 3000;
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.json({ limit: '1gb' }));
+  app.use(express.urlencoded({ limit: '1gb', extended: true }));
 
   // Add a CSP header to help with Vercel/Browser restrictions
   app.use((req, res, next) => {
